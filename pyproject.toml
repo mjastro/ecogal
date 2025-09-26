@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools>=43.0.0", "setuptools_scm[toml]>=6.2", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "ecogal/version.py"
+
+[tool.black]
+line-length = 79
