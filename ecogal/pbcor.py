@@ -11,7 +11,6 @@ import astropy.io.fits as pyfits
 import astropy.wcs as pywcs
 import astropy.units as u
 
-from grizli.aws import db
 from grizli import utils
 
 RGB_URL = "https://grizli-cutout.herokuapp.com/thumb?all_filters=False&size={cutout_size}&scl=1.0&asinh=True&filters=f115w-clear,f277w-clear,f444w-clear&rgb_scl=1.5,0.74,1.3&pl=2&ra={ra}&dec={dec}"
@@ -25,17 +24,6 @@ def show_all_cutouts(
     """
     import PIL
     import urllib
-
-    # alma = db.SQL(
-    #     f"""
-    # SELECT * FROM alma_ecogal_summary
-    # WHERE
-    # polygon(footprint) @> point( {ra}, {dec} )
-    # AND BMAJ < {8./3600}
-    # AND is_available
-    # ORDER BY band
-    # """
-    # )
 
     query_url = f"https://grizli-cutout.herokuapp.com/ecogal?ra={ra}&dec={dec}&output=csv"
     alma = utils.read_catalog(query_url, format="csv")
@@ -156,11 +144,6 @@ class EcogalFile:
         """
         self.file_alma = file_alma
 
-        # self.meta = dict(
-        #     db.SQL(
-        #         f"select * from alma_ecogal_summary where file_alma = '{file_alma}'"
-        #     )[0]
-        # )
         self.meta = get_pbcor_metadata(file_alma=self.file_alma)
 
         with pyfits.open(
