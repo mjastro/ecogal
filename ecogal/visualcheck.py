@@ -83,7 +83,7 @@ def get_summary(ra, dec, r_search = 0.4,):
         if len(gal_uniq)==1:
             tab = table_info
             gal_uniq = gal_uniq[0]
-            sep = sep[0]
+            sep = sep[con_sep][0]
         else:
             print(f'There are multiple sources ({len(gal_uniq)}) within the searching area; choosing the closest available')
             idx_close = np.argmin(sep[con_sep])
@@ -91,11 +91,11 @@ def get_summary(ra, dec, r_search = 0.4,):
             # data retreival
             gal_uniq = table_info['id_new'][idx_close]
             tab = table_info[idx_close:idx_close+1]
-            sep = sep[con_sep]
+            sep = sep[con_sep][idx_close]
 
         Summary_URL = f'{base_url}pngs/ecogal__0_all_filters_{gal_uniq}.png'
         print(Summary_URL)
-        print(f'At a distance of ={sep:.2f} arcsec')
+        print(f'A source found at a distance of = {sep:.2f} arcsec')
 
         return Summary_URL
     
