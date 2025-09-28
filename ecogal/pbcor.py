@@ -16,6 +16,13 @@ from grizli import utils
 RGB_URL = "https://grizli-cutout.herokuapp.com/thumb?all_filters=False&size={cutout_size}&scl=1.0&asinh=True&filters=f115w-clear,f277w-clear,f444w-clear&rgb_scl=1.5,0.74,1.3&pl=2&ra={ra}&dec={dec}"
 
 
+def query_footprints(ra, dec):
+    """
+    """
+    query_url = f"https://grizli-cutout.herokuapp.com/ecogal?ra={ra}&dec={dec}&output=csv"
+    alma = utils.read_catalog(query_url, format="csv")
+    return alma
+
 def show_all_cutouts(
     ra, dec, sx=3, nx=5, cutout_size=None, thumb_url=RGB_URL, **kwargs
 ):
@@ -126,6 +133,8 @@ def get_pbcor_metadata(file_alma="2022.1.01644.S__all_MOSDEF_3324_b3_cont_nonint
     """
     import urllib.request, json
     url = f"https://grizli-cutout.herokuapp.com/ecogal_metadata?file_alma={file_alma}"
+    url = url.replace("+", "%2B")
+
     with urllib.request.urlopen(url) as fp:
         meta = json.loads(fp.read().decode())
 
