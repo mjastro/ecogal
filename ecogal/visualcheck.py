@@ -8,7 +8,8 @@ from astropy.table import Table
 from astropy.utils.data import download_file
 from astropy.coordinates import SkyCoord
 from astropy import units as u
-
+import shapely
+from shapely import Point, Polygon
 
 slits_url = "https://grizli-cutout.herokuapp.com/nirspec_slits?coord={0:s},{1:s}"
 base_url = 'https://s3.amazonaws.com/alma-ecogal/dr1/'
@@ -17,6 +18,15 @@ base_url = 'https://s3.amazonaws.com/alma-ecogal/dr1/'
 #---- define plotting function
 ##################################################
 
+
+def fpstr_to_region(fp_str):
+    fp_str = fp_str.replace('(','').replace(')','')
+    if "," in fp_str:
+        cords = fp_str.strip().split(",")
+
+    poly_array = np.asarray(cords[:], dtype=float).reshape((-1, 2))
+    poly_region = Polygon(poly_array)
+    return poly_region
 
 def get_summary(ra, dec, r_search = 0.4,):
     #######################################################
