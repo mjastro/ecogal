@@ -56,12 +56,7 @@ def ecogal_cutout(file_alma, ra, dec, cutout_size, *args, **kwargs):
     Memory-efficient cutout
     """
 
-    from grizli import utils
-
     cache_file = get_ecogal_file(file_alma, cache=True)
-
-    import astrocut
-    import astropy.units as u
 
     with pyfits.open(cache_file) as im:
         h = im[0].header
