@@ -595,7 +595,9 @@ class EcogalFile:
         props.rename_column("centroid-1", "x")
         props.rename_column("intensity_max", "smax")
         props.rename_column("label", "id")
-        props["smax"] *= 1000
+
+        # props["smax"] *= 1000
+
         props["ra"], props["dec"], nu = self.wcs.all_pix2world(
             props["x"],
             props["y"],
@@ -615,3 +617,63 @@ class EcogalFile:
         props["scen_err"].unit = u.mJy / u.beam
 
         return props
+
+
+def blind_detection(file_alma, threshold=4.0, icdf_threshold=0.02):
+    """
+    Run blind detection
+    """
+    from scipy.stats import Normal
+
+    eco = EcogalFile(file_alma=file_alma)
+
+    props = eco.threshold_catalog(threshold=threshold)
+    nprops = eco.threshold_catalog(threshold=threshold, sign=-1)
+
+    props["sn"] = props["scen"] / props["scen_err"]
+    props["sn"].format = ".1f"
+    if len(nprops) > 0:
+        nprops["sn"] = -nprops["scen"] / nprops["scen_err"]
+
+    # _ = plt.hist(props['scen'] / props['scen_err'], bins=np.linspace(2, 10, 30), alpha=0.2, log=True)
+    # _ = plt.hist(-nprops['scen'] / nprops['scen_err'], bins=np.linspace(2, 10, 30), alpha=0.2, log=True)
+    # plt.vlines(thresh, *plt.ylim(), color='magenta')
+
+    # ix = np.where(meta['file_alma'] == file)[0][0]
+
+    nbeams = (
+        np.pi * (eco.meta["FoV_sigma"] / (eco.meta["bmaj"] * 3600 / 2.35)) ** 2
+    )
+    props["nbeams"] = int(nbeams)
+
+    if len(nprops) > 0:
+        props["negative_snmax"] = nprops["sn"].max()
+    else:
+        props["negative_snmax"] = -1.0
+
+    props["negative_snmax"].format = ".2f"
+
+    thresh = -Normal().icdf(icdf_threshold / nbeams)
+    props["spurious_threshold"] = thresh
+    props["spurious_threshold"].format = ".2f"
+
+    props["dra"] = (
+        (props["ra"] - eco.meta["ra_center"])
+        * 3600.0
+        / np.cos(props["dec"] / 180 * np.pi)
+    )
+    props["dde"] = (props["dec"] - eco.meta["dec_center"]) * 3600.0
+
+    props["dx"] = np.sqrt(props["dra"] ** 2 + props["dde"] ** 2)
+
+    props["dx_pb"] = props["dx"] / eco.meta["FoV_sigma"]
+    props["dx_pb"].format = ".3f"
+
+    props["dra"].format = ".2f"
+    props["dde"].format = ".2f"
+    props["dx"].format = ".2f"
+    props["dra"].unit = u.arcsec
+    props["dde"].unit = u.arcsec
+    props["dx"].unit = u.arcsec
+
+    return eco, props
