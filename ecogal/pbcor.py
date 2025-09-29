@@ -10,21 +10,100 @@ from tqdm import tqdm
 import astropy.io.fits as pyfits
 import astropy.wcs as pywcs
 import astropy.units as u
+from astropy.utils.data import download_file
 
 from grizli import utils
 
 RGB_URL = "https://grizli-cutout.herokuapp.com/thumb?all_filters=False&size={cutout_size}&scl=1.0&asinh=True&filters=f115w-clear,f277w-clear,f444w-clear&rgb_scl=1.5,0.74,1.3&pl=2&ra={ra}&dec={dec}"
 
+FILE_URL = "https://s3.amazonaws.com/alma-ecogal/dr1/pbcor/"
+
 
 def query_footprints(ra, dec):
     """
+    Get the API query for footprints that touch defined coordinates
     """
     query_url = f"https://grizli-cutout.herokuapp.com/ecogal?ra={ra}&dec={dec}&output=csv"
     alma = utils.read_catalog(query_url, format="csv")
     return alma
 
+
+def get_ecogal_file(file_alma, cache=True, verbose=False, **kwargs):
+    """
+    Generate a path to an ECOGAL file, either from a local path or by downloading a remote file
+    """
+    from astropy.utils.data import download_file
+
+    if os.path.exists(file_alma):
+        if verbose:
+            msg = f"get_ecogal_file: local file {file_alma}"
+            print(msg)
+
+        return file_alma
+
+    remote_url = os.path.join(FILE_URL, file_alma).replace("+", "%2B")
+
+    cache_file = download_file(remote_url, cache=cache)
+    if verbose:
+        msg = f"get_ecogal_file: remote {remote_url},  cache {cache_file}"
+        print(msg)
+
+    return cache_file
+
+
+def ecogal_cutout(file_alma, ra, dec, cutout_size, *args, **kwargs):
+    """
+    Memory-efficient cutout
+    """
+
+    from grizli import utils
+
+    cache_file = get_ecogal_file(file_alma, cache=True)
+
+    import astrocut
+    import astropy.units as u
+
+    with pyfits.open(cache_file) as im:
+        h = im[0].header
+        wcs = pywcs.WCS(h)
+
+        h["FILEALMA"] = file_alma
+
+        xyz = np.squeeze(wcs.all_world2pix([ra], [dec], [h["CRVAL3"]], 0))
+        xyzi = np.round(xyz).astype(int)
+
+        pixel_scale = np.abs(utils.get_wcs_pscale(wcs))
+
+        N = int(np.round(cutout_size / pixel_scale))
+
+        # print(ra, dec, xyzi, self.shape)
+
+        slx = slice(xyzi[0] - N, xyzi[0] + N + 1)
+        sly = slice(xyzi[1] - N, xyzi[1] + N + 1)
+        slh = wcs.slice((slice(0, 1), sly, slx)).to_header(relax=True)
+        cut = im[0].data[:, sly, slx]
+
+        for k in h:
+            if k not in slh:
+                try:
+                    slh[k] = h[k]
+                except ValueError:
+                    continue
+
+    hdu = pyfits.HDUList([pyfits.PrimaryHDU(data=cut, header=slh)])
+
+    return hdu
+
+
 def show_all_cutouts(
-    ra, dec, sx=3, nx=5, cutout_size=None, thumb_url=RGB_URL, **kwargs
+    ra,
+    dec,
+    sx=3,
+    nx=5,
+    cutout_size=None,
+    thumb_url=RGB_URL,
+    pre_cutout=True,
+    **kwargs,
 ):
     """
     Make a plot showing all cutouts
@@ -90,9 +169,16 @@ def show_all_cutouts(
     for k, file_alma in enumerate(alma["file_alma"]):
         if 1:
             # print(file_alma)
-            eco = EcogalFile(file_alma=file_alma)
+            if pre_cutout:
+                cutout_args = (ra, dec, cutout_size * 1.2)
+            else:
+                cutout_args = None
+
+            eco = EcogalFile(file_alma=file_alma, cutout_args=cutout_args)
+
             j = (k + 1) % nx
             i = (k + 1) // nx
+
             pos, fig_ = eco.cutout_figure(
                 ra, dec, ax=axes[i][j], cutout_size=cutout_size
             )
@@ -127,11 +213,14 @@ def show_all_cutouts(
     return resp
 
 
-def get_pbcor_metadata(file_alma="2022.1.01644.S__all_MOSDEF_3324_b3_cont_noninter2sig.image.pbcor.fits"):
+def get_pbcor_metadata(
+    file_alma="2022.1.01644.S__all_MOSDEF_3324_b3_cont_noninter2sig.image.pbcor.fits",
+):
     """
     Read metadata from the API
     """
     import urllib.request, json
+
     url = f"https://grizli-cutout.herokuapp.com/ecogal_metadata?file_alma={file_alma}"
     url = url.replace("+", "%2B")
 
@@ -142,11 +231,12 @@ def get_pbcor_metadata(file_alma="2022.1.01644.S__all_MOSDEF_3324_b3_cont_nonint
 
 
 class EcogalFile:
-    file_url = "https://s3.amazonaws.com/alma-ecogal/dr1/pbcor/"
 
     def __init__(
         self,
         file_alma="2022.1.01644.S__all_MOSDEF_3324_b3_cont_noninter2sig.image.pbcor.fits",
+        cutout_args=None,
+        cache=True,
     ):
         """
         Helper functions for ecogal pbcof products
@@ -155,9 +245,14 @@ class EcogalFile:
 
         self.meta = get_pbcor_metadata(file_alma=self.file_alma)
 
-        with pyfits.open(
-            os.path.join(self.file_url, file_alma).replace("+", "%2B")
-        ) as im:
+        if cutout_args is None:
+            cache_file = get_ecogal_file(file_alma, cache=cache)
+
+            with pyfits.open(cache_file) as im:
+                self.data = np.squeeze(im[0].data * 1)
+                self.header = im[0].header.copy()
+        else:
+            im = ecogal_cutout(file_alma, *cutout_args)
             self.data = np.squeeze(im[0].data * 1)
             self.header = im[0].header.copy()
 
@@ -190,7 +285,10 @@ class EcogalFile:
         """
         xyz = np.squeeze(
             self.wcs.all_world2pix(
-                [self.meta["ra_center"]], [self.meta["dec_center"]], [self.frequency], 0
+                [self.meta["ra_center"]],
+                [self.meta["dec_center"]],
+                [self.frequency],
+                0,
             )
         )
         return xyz
@@ -215,10 +313,15 @@ class EcogalFile:
         """
         NZ, NY, NX = self.shape
         xyz = self.wcs.all_world2pix(
-            [self.meta["ra_center"]], [self.meta["dec_center"]], [self.frequency], 0
+            [self.meta["ra_center"]],
+            [self.meta["dec_center"]],
+            [self.frequency],
+            0,
         )
         yp, xp = np.indices((NY, NX))
-        Rp = np.sqrt((xp - xyz[0]) ** 2 + (yp - xyz[1]) ** 2) * self.pixel_scale
+        Rp = (
+            np.sqrt((xp - xyz[0]) ** 2 + (yp - xyz[1]) ** 2) * self.pixel_scale
+        )
         return np.exp(-(Rp**2) / 2 / self.meta["FoV_sigma"] ** 2) * self.mask
 
     @property
@@ -242,7 +345,9 @@ class EcogalFile:
         """
         Evaluate pixel value and noise at a position in the image
         """
-        xyz = np.squeeze(self.wcs.all_world2pix([ra], [dec], [self.frequency], 0))
+        xyz = np.squeeze(
+            self.wcs.all_world2pix([ra], [dec], [self.frequency], 0)
+        )
         xyzi = np.round(xyz).astype(int)
 
         dra = (ra - self.meta["ra_center"]) * np.cos(dec / 180 * np.pi) * 3600
@@ -283,7 +388,9 @@ class EcogalFile:
 
         b = self.beam
 
-        xyz = np.squeeze(self.wcs.all_world2pix([ra], [dec], [self.frequency], 0))
+        xyz = np.squeeze(
+            self.wcs.all_world2pix([ra], [dec], [self.frequency], 0)
+        )
         xyzi = np.round(xyz).astype(int)
 
         bradius = np.sqrt(b["beam_area"]) / np.pi * 1.2
@@ -310,7 +417,11 @@ class EcogalFile:
             fig = None
 
         ax.imshow(
-            self.data_sn[sly, slx], vmin=vmin, vmax=vmax, cmap="bone_r", origin="lower"
+            self.data_sn[sly, slx],
+            vmin=vmin,
+            vmax=vmax,
+            cmap="bone_r",
+            origin="lower",
         )
 
         nlev = len(contour_levels)
@@ -417,7 +528,9 @@ class EcogalFile:
 
         return pos, fig
 
-    def cutout_with_thumb(self, ra, dec, sx=3.0, cutout_size=None, thumb_url=RGB_URL):
+    def cutout_with_thumb(
+        self, ra, dec, sx=3.0, cutout_size=None, thumb_url=RGB_URL
+    ):
         """
         Cutout figure with a DJA JWST thumbnail
         """
@@ -489,7 +602,10 @@ class EcogalFile:
         props.rename_column("label", "id")
         props["smax"] *= 1000
         props["ra"], props["dec"], nu = self.wcs.all_pix2world(
-            props["x"], props["y"], self.header["CRVAL3"] * np.ones(len(props)) - 1, 0
+            props["x"],
+            props["y"],
+            self.header["CRVAL3"] * np.ones(len(props)) - 1,
+            0,
         )
 
         xi = np.round(props["x"]).astype(int)
