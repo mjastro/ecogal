@@ -18,6 +18,8 @@ RGB_URL = "https://grizli-cutout.herokuapp.com/thumb?all_filters=False&size={cut
 
 FILE_URL = "https://s3.amazonaws.com/alma-ecogal/dr1/pbcor/"
 
+CACHE_DOWNLOADS = True
+
 
 def query_footprints(ra, dec):
     """
@@ -28,7 +30,7 @@ def query_footprints(ra, dec):
     return alma
 
 
-def get_ecogal_file(file_alma, cache=True, verbose=False, **kwargs):
+def get_ecogal_file(file_alma, verbose=False, **kwargs):
     """
     Generate a path to an ECOGAL file, either from a local path or by downloading a remote file
     """
@@ -43,7 +45,7 @@ def get_ecogal_file(file_alma, cache=True, verbose=False, **kwargs):
 
     remote_url = os.path.join(FILE_URL, file_alma).replace("+", "%2B")
 
-    cache_file = download_file(remote_url, cache=cache)
+    cache_file = download_file(remote_url, cache=CACHE_DOWNLOADS)
     if verbose:
         msg = f"get_ecogal_file: remote {remote_url},  cache {cache_file}"
         print(msg)
@@ -56,7 +58,7 @@ def ecogal_cutout(file_alma, ra, dec, cutout_size, *args, **kwargs):
     Memory-efficient cutout
     """
 
-    cache_file = get_ecogal_file(file_alma, cache=True)
+    cache_file = get_ecogal_file(file_alma, cache=CACHE_DOWNLOADS)
 
     with pyfits.open(cache_file) as im:
         h = im[0].header
@@ -98,6 +100,8 @@ def show_all_cutouts(
     cutout_size=None,
     thumb_url=RGB_URL,
     pre_cutout=True,
+    fontsize=7,
+    query=None,
     **kwargs,
 ):
     """
@@ -106,8 +110,11 @@ def show_all_cutouts(
     import PIL
     import urllib
 
-    query_url = f"https://grizli-cutout.herokuapp.com/ecogal?ra={ra}&dec={dec}&output=csv"
-    alma = utils.read_catalog(query_url, format="csv")
+    if query is None:
+        query_url = f"https://grizli-cutout.herokuapp.com/ecogal?ra={ra}&dec={dec}&output=csv"
+        alma = utils.read_catalog(query_url, format="csv")
+    else:
+        alma = query
 
     print(f"N={len(alma)}")
 
@@ -124,7 +131,14 @@ def show_all_cutouts(
 
     # print(alma['file_alma','bmaj','dr'].to_pandas())
 
-    ny = (len(alma) + 1) // 5 + 1
+    nx = int(np.minimum(nx, len(alma) + 1))
+
+    ny = (len(alma) + 1) // nx + 1
+    if (len(alma) + 1) == nx:
+        ny = 1
+    elif (len(alma) + 1) == (nx * (ny - 1)):
+        ny -= 1
+
     fig, axes = plt.subplots(ny, nx, figsize=(sx * nx, sx * ny), squeeze=False)
 
     # cutout_size = 2.6
@@ -151,13 +165,13 @@ def show_all_cutouts(
 
     ax.text(
         0.5,
-        0.02,
+        0.05,
         f"({ra:.6f}, {dec:.6f})",
         ha="center",
         va="bottom",
         transform=ax.transAxes,
         color="w",
-        fontsize=7,
+        fontsize=fontsize * (sx / 3.0) ** 0.5,
     )
     all_pos = []
 
@@ -175,7 +189,11 @@ def show_all_cutouts(
             i = (k + 1) // nx
 
             pos, fig_ = eco.cutout_figure(
-                ra, dec, ax=axes[i][j], cutout_size=cutout_size
+                ra,
+                dec,
+                ax=axes[i][j],
+                cutout_size=cutout_size,
+                fontsize=fontsize * (sx / 3.0) ** 0.5,
             )
 
             print(
@@ -200,8 +218,13 @@ def show_all_cutouts(
         i = ki // nx
         axes[i][j].axis("off")
 
-    fig.tight_layout(pad=0.3)
+    # fig.tight_layout(pad=0.3)
+    # fig.tight_layout(pad=1)
     fig.tight_layout(pad=1)
+    fig.tight_layout(pad=0)
+
+    if (nx == 2) & (ny == 1):
+        fig.tight_layout(pad=0)
 
     resp = {"query": alma, "fig": fig, "photometry": all_pos}
 
@@ -231,7 +254,6 @@ class EcogalFile:
         self,
         file_alma="2022.1.01644.S__all_MOSDEF_3324_b3_cont_noninter2sig.image.pbcor.fits",
         cutout_args=None,
-        cache=True,
     ):
         """
         Helper functions for ecogal pbcof products
@@ -241,7 +263,7 @@ class EcogalFile:
         self.meta = get_pbcor_metadata(file_alma=self.file_alma)
 
         if cutout_args is None:
-            cache_file = get_ecogal_file(file_alma, cache=cache)
+            cache_file = get_ecogal_file(file_alma, cache=CACHE_DOWNLOADS)
 
             with pyfits.open(cache_file) as im:
                 self.data = np.squeeze(im[0].data * 1)
@@ -375,6 +397,7 @@ class EcogalFile:
         vmax=20,
         contour_levels=[3, 5, 10, 20],
         cutout_size=None,
+        fontsize=7,
     ):
         """
         Make a cutout figure
@@ -431,11 +454,12 @@ class EcogalFile:
 
         ax.scatter(
             *(xyz - xyzi + N)[:2],
-            marker="+",
-            color="bisque",
+            marker="s",
+            ec="violet",
+            fc="None",
             s=100,
             zorder=100,
-            alpha=0.8,
+            alpha=0.9,
         )
 
         ax.scatter(
@@ -452,16 +476,31 @@ class EcogalFile:
         ax.set_xlim(-0.5, 2 * N + 0.5)
         ax.set_ylim(-0.5, 2 * N + 0.5)
 
-        npad = 1 + (N > 10 * b["bmaj_pix"]) * 1
+        npad = (
+            1.1
+            + (2 * N > 8 * b["bmaj_pix"]) * 0.5
+            + (2 * N > 14 * b["bmaj_pix"]) * 1
+        )
+
+        theta = (self.header["BPA"] + 90) / 180 * np.pi
+        bx = np.sqrt(
+            (b["bmaj_pix"] * np.cos(theta)) ** 2
+            + (b["bmin_pix"] * np.sin(theta)) ** 2
+        )
+        by = np.sqrt(
+            (b["bmaj_pix"] * np.sin(theta)) ** 2
+            + (b["bmin_pix"] * np.cos(theta)) ** 2
+        )
 
         be = mpatches.Ellipse(
-            (bradius * npad, bradius * npad),
+            (bx / 2 * npad - 0.5, by / 2 * npad - 0.5),
             b["bmaj_pix"],
             b["bmin_pix"],
             angle=self.header["BPA"] + 90,
             lw=1,
-            facecolor="0.8",
-            edgecolor="0.5",
+            facecolor="0.8" if (2 * N < 14 * b["bmaj_pix"]) else "0.4",
+            edgecolor="0.7" if (2 * N < 14 * b["bmaj_pix"]) else "0.2",
+            alpha=0.6 if (2 * N < 14 * b["bmaj_pix"]) else 1.0,
             hatch="/////",
         )
 
@@ -488,31 +527,65 @@ class EcogalFile:
 
         ax.grid()
 
-        label = [
-            self.file_alma.split("_cont")[0] + "\n",
-            f'Band {self.meta["band"]}  {self.frequency / 1.e9:.1f} GHz / {self.wavelength*1.e3:.3f} mm',
+        labels = [
+            self.file_alma.split("_")[0],
+            "_".join(self.file_alma.replace("__", "_").split("_")[1:-2]),
+            # f'Band {self.meta["band"]}  {self.frequency / 1.e9:.1f} GHz / {self.wavelength*1.e3:.2f} mm'
         ]
 
-        ax.text(
-            0.98,
-            0.98,
-            "\n".join(label),
-            ha="right",
-            va="top",
-            transform=ax.transAxes,
-            fontsize=7,
-            # bbox={'fc':'w', 'alpha':0.8, "ec": "None",}
-        )
+        for li, label in enumerate(labels):
+            ax.text(
+                0.97,
+                0.97 - 0.05 * li,
+                label,
+                ha="right",
+                va="top",
+                transform=ax.transAxes,
+                fontsize=fontsize,
+                # bbox={'fc':'w', 'alpha':0.8, "ec": "None",}
+            )
+
+        labels = [
+            (
+                f'{self.header["BMAJ"] * 3600:.1f} x {self.header["BMIN"] * 3600:.1f}"'
+                if self.header["BMIN"] * 3600 > 0.1
+                else f'{self.header["BMAJ"] * 3.6e6:.0f} x {self.header["BMIN"] * 3.6e6:.0f} mas'
+            ),
+            f'{pos["data"] * 1000:.4f} ± {pos["err"] * 1000:.4f} mJy / beam',
+        ][::-1]
+
+        for li, label in enumerate(labels):
+            ax.text(
+                0.97,
+                0.03 + 0.05 * li,
+                label,
+                ha="right",
+                va="bottom",
+                transform=ax.transAxes,
+                fontsize=fontsize,
+                zorder=100,
+                # bbox={'fc':'w', 'alpha':0.8, "ec": "None",}
+            )
 
         ax.text(
-            0.98,
-            0.02,
-            f'{pos["data"] * 1000:.4f} ± {pos["err"] * 1000:.4f} mJy / beam\n\n{self.header["BMAJ"] * 3600:.2f} x {self.header["BMIN"] * 3600:.2f}"',
+            0.97,
+            0.03 + 0.05 * (li + 1.3),
+            f'Band {self.meta["band"]}',
             ha="right",
             va="bottom",
+            # color=plt.cm.Spectral(np.interp(self.meta["band"], [1, 10], [0, 1])),
             transform=ax.transAxes,
-            fontsize=7,
-            # bbox={'fc':'w', 'alpha':0.8, "ec": "None",}
+            fontsize=fontsize,
+            # alpha=0.5,
+            zorder=99,
+            bbox={
+                "ec": "None",
+                "alpha": 0.5,
+                "boxstyle": "square,pad=0.3",
+                "fc": plt.cm.Spectral(
+                    np.interp(self.meta["band"], [1, 10], [0, 1])
+                ),
+            },
         )
 
         ax.set_xticklabels([])
@@ -524,7 +597,7 @@ class EcogalFile:
         return pos, fig
 
     def cutout_with_thumb(
-        self, ra, dec, sx=3.0, cutout_size=None, thumb_url=RGB_URL
+        self, ra, dec, sx=3.0, fontsize=7, cutout_size=None, thumb_url=RGB_URL
     ):
         """
         Cutout figure with a DJA JWST thumbnail
@@ -566,13 +639,14 @@ class EcogalFile:
             va="bottom",
             transform=ax.transAxes,
             color="w",
-            fontsize=7,
+            fontsize=fontsize * sx / 3.0,
         )
 
         self.cutout_figure(ra, dec, ax=axes[1], cutout_size=cutout_size)
         fig.tight_layout(pad=1)
 
         return fig
+
 
     def threshold_catalog(self, threshold=4, sign=1):
         """
@@ -595,8 +669,6 @@ class EcogalFile:
         props.rename_column("centroid-1", "x")
         props.rename_column("intensity_max", "smax")
         props.rename_column("label", "id")
-
-        # props["smax"] *= 1000
 
         props["ra"], props["dec"], nu = self.wcs.all_pix2world(
             props["x"],
@@ -634,12 +706,6 @@ def blind_detection(file_alma, threshold=4.0, icdf_threshold=0.02):
     props["sn"].format = ".1f"
     if len(nprops) > 0:
         nprops["sn"] = -nprops["scen"] / nprops["scen_err"]
-
-    # _ = plt.hist(props['scen'] / props['scen_err'], bins=np.linspace(2, 10, 30), alpha=0.2, log=True)
-    # _ = plt.hist(-nprops['scen'] / nprops['scen_err'], bins=np.linspace(2, 10, 30), alpha=0.2, log=True)
-    # plt.vlines(thresh, *plt.ylim(), color='magenta')
-
-    # ix = np.where(meta['file_alma'] == file)[0][0]
 
     nbeams = (
         np.pi * (eco.meta["FoV_sigma"] / (eco.meta["bmaj"] * 3600 / 2.35)) ** 2
