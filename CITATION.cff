@@ -1,0 +1,21 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: ecogal
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Minju
+    family-names: Lee
+    email: minju@space.dtu.dk
+    affiliation: Technical University of Denmark
+    orcid: 'https://orcid.org/0000-0002-2419-3068'
+  - given-names: Gabriel
+    family-names: Brammer
+    email: gabriel.brammer@nbi.ku.dk
+    affiliation: University of Copenhagen
+repository-code: 'https://github.com/mjastro/ecogal'
+abstract: ECOGAL data release exploration tool
