@@ -7,7 +7,7 @@ ECOology for Galaxies using ALMA archive and Legacy surveys (ECOGAL) is an ALMA 
 ## Installation
 The code has been tested on python3.12 environment.
 ```
-python -m pip pip install git+https://github.com/mjastro/ecogal.git
+python -m pip install git+https://github.com/mjastro/ecogal.git
 ```
 This will download and install the latest version of `ecogal` as well as all the required dependencies.
  
