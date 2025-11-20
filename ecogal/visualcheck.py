@@ -28,7 +28,7 @@ def fpstr_to_region(fp_str):
     poly_region = Polygon(poly_array)
     return poly_region
 
-def get_summary(ra, dec, r_search = 0.4,):
+def get_summary(ra, dec, r_search = 0.4, catname = 'ecogal_all_priors_v1.csv'):
     #######################################################
     ### getting the closest galaxies from the prior catalogue
     #getting the source within the footprint
@@ -56,7 +56,7 @@ def get_summary(ra, dec, r_search = 0.4,):
     if 1:
         atb = Table.read(
             download_file(
-            base_url+'catalogue/combined_casa_bdsf_crossmatched_dja_pbfac__250824_0p8_ecogalcov.csv',
+            base_url+f'catalogue/{catname}',
                 cache=True,
             ),
             format="csv",
