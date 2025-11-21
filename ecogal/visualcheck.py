@@ -13,6 +13,7 @@ from shapely import Point, Polygon
 
 slits_url = "https://grizli-cutout.herokuapp.com/nirspec_slits?coord={0:s},{1:s}"
 base_url = 'https://s3.amazonaws.com/alma-ecogal/dr1/'
+CACHE_DOWNLOADS=True
 
 ##################################################
 #---- define plotting function
@@ -27,6 +28,32 @@ def fpstr_to_region(fp_str):
     poly_array = np.asarray(cords[:], dtype=float).reshape((-1, 2))
     poly_region = Polygon(poly_array)
     return poly_region
+
+
+def get_footprint(ra,dec,metadata= None, version='v1'):
+
+    if metadata=None:
+        metadata_fits = "ecogal_"+version+"_metadata.fits"
+        table_url = f"{base_url}/ancillary/{metadata_fits}"
+        meta = utils.read_catalog(download_file(table_url, cache=CACHE_DOWNLOADS), format='fits')
+    else:
+        meta = metadata
+
+    gal_pos = Point(ra,dec)
+    bool_region = np.zeros(len(meta),dtype=bool)
+    
+    for i in range(len(meta)):
+        poly_region = fpstr_to_region(meta['footprint'][i])
+        if shapely.within(gal_pos, poly_region):
+            bool_region[i] = True
+
+    fp = meta[bool_region]
+
+	if np.sum(bool_region):
+		print('There are #{np.sum(bool_region)} ALMA projects overlapping')
+	else:
+		print('No overlap found within ALMA/ECOGAL')
+    return fp, bool_region
 
 def get_summary(ra, dec, r_search = 0.4, catname = 'ecogal_all_priors_v1.csv'):
     #######################################################
@@ -47,11 +74,8 @@ def get_summary(ra, dec, r_search = 0.4, catname = 'ecogal_all_priors_v1.csv'):
 
     gal_pos = Point(ra,dec)
 
-    bool_region = np.zeros(len(rfile),dtype=bool)
-    for i in range(len(rfile)):
-        poly_region = fpstr_to_region(rfile['footprint'][i])
-        if shapely.within(gal_pos, poly_region):
-            bool_region[i] = True
+	#getting the footprint
+	fp, bool_region = get_footprint(ra,dec,metadata=rfile)
 
     if 1:
         atb = Table.read(
