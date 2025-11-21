@@ -49,7 +49,7 @@ def get_footprint(ra,dec,metadata= None, version='v1'):
 
     fp = meta[bool_region]
 
-	if np.sum(bool_region):
+	if np.sum(bool_region)>0:
 		print('There are #{np.sum(bool_region)} ALMA projects overlapping')
 	else:
 		print('No overlap found within ALMA/ECOGAL')
