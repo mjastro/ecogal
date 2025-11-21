@@ -10,6 +10,7 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 import shapely
 from shapely import Point, Polygon
+from grizli import utils
 
 slits_url = "https://grizli-cutout.herokuapp.com/nirspec_slits?coord={0:s},{1:s}"
 base_url = 'https://s3.amazonaws.com/alma-ecogal/dr1/'
