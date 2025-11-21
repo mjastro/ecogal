@@ -38,7 +38,7 @@ def get_footprint(ra,dec,metadata= None, version='v1'):
         meta = utils.read_catalog(download_file(table_url, cache=CACHE_DOWNLOADS), format='fits')
     else:
         meta = metadata
-
+    
     gal_pos = Point(ra,dec)
     bool_region = np.zeros(len(meta),dtype=bool)
     
@@ -46,13 +46,14 @@ def get_footprint(ra,dec,metadata= None, version='v1'):
         poly_region = fpstr_to_region(meta['footprint'][i])
         if shapely.within(gal_pos, poly_region):
             bool_region[i] = True
-
+    
     fp = meta[bool_region]
+    
+    if np.sum(bool_region)>0:
+        print('There are #{np.sum(bool_region)} ALMA projects overlapping')
+    else:
+        print('No overlap found within ALMA/ECOGAL')
 
-	if np.sum(bool_region)>0:
-		print('There are #{np.sum(bool_region)} ALMA projects overlapping')
-	else:
-		print('No overlap found within ALMA/ECOGAL')
     return fp, bool_region
 
 def get_summary(ra, dec, r_search = 0.4, catname = 'ecogal_all_priors_v1.csv'):
