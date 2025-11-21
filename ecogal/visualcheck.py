@@ -35,7 +35,6 @@ def get_footprint(ra,dec,metadata= None, version='v1'):
 
     if metadata==None:
         table_url = f"{base_url}/ancillary/ecogal_{version}_metadata.fits"
-        print(table_url)
         meta = utils.read_catalog(download_file(table_url, cache=CACHE_DOWNLOADS), format='fits')
     else:
         meta = metadata
