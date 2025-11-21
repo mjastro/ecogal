@@ -13,7 +13,7 @@ from shapely import Point, Polygon
 from grizli import utils
 
 slits_url = "https://grizli-cutout.herokuapp.com/nirspec_slits?coord={0:s},{1:s}"
-base_url = 'https://s3.amazonaws.com/alma-ecogal/dr1/'
+base_url = 'https://s3.amazonaws.com/alma-ecogal/dr1'
 CACHE_DOWNLOADS=True
 
 ##################################################
@@ -34,8 +34,8 @@ def fpstr_to_region(fp_str):
 def get_footprint(ra,dec,metadata= None, version='v1'):
 
     if metadata==None:
-        metadata_fits = "ecogal_"+version+"_metadata.fits"
-        table_url = f"{base_url}/ancillary/{metadata_fits}"
+        table_url = f"{base_url}/ancillary/ecogal_{version}_metadata.fits"
+        print(table_url)
         meta = utils.read_catalog(download_file(table_url, cache=CACHE_DOWNLOADS), format='fits')
     else:
         meta = metadata
@@ -51,7 +51,7 @@ def get_footprint(ra,dec,metadata= None, version='v1'):
     fp = meta[bool_region]
     
     if np.sum(bool_region)>0:
-        print('There are #{np.sum(bool_region)} ALMA projects overlapping')
+        print(f'There are #{np.sum(bool_region)} ALMA projects overlapping')
     else:
         print('No overlap found within ALMA/ECOGAL')
 
@@ -66,7 +66,7 @@ def get_summary(ra, dec, r_search = 0.4, catname = 'ecogal_all_priors_v1.csv'):
 
     rfile = Table.read(
         download_file(
-            base_url+'ancillary/ecogal_v1_metadata.fits',
+            base_url+'/ancillary/ecogal_v1_metadata.fits',
             cache=True,
         ),
         format="fits"
@@ -82,7 +82,7 @@ def get_summary(ra, dec, r_search = 0.4, catname = 'ecogal_all_priors_v1.csv'):
     if 1:
         atb = Table.read(
             download_file(
-            base_url+f'catalogue/{catname}',
+            base_url+f'/catalogue/{catname}',
                 cache=True,
             ),
             format="csv",
@@ -119,7 +119,7 @@ def get_summary(ra, dec, r_search = 0.4, catname = 'ecogal_all_priors_v1.csv'):
             tab = table_info[idx_close:idx_close+1]
             sep = sep[con_sep][idx_close]
 
-        Summary_URL = f'{base_url}pngs/ecogal__0_all_filters_{gal_uniq}.png'
+        Summary_URL = f'{base_url}/pngs/ecogal__0_all_filters_{gal_uniq}.png'
         print(Summary_URL)
         print(f'A source found at a distance of = {sep:.2f} arcsec')
 
