@@ -32,7 +32,7 @@ def fpstr_to_region(fp_str):
 
 def get_footprint(ra,dec,metadata= None, version='v1'):
 
-    if metadata=None:
+    if metadata==None:
         metadata_fits = "ecogal_"+version+"_metadata.fits"
         table_url = f"{base_url}/ancillary/{metadata_fits}"
         meta = utils.read_catalog(download_file(table_url, cache=CACHE_DOWNLOADS), format='fits')
