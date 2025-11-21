@@ -76,7 +76,7 @@ def get_summary(ra, dec, r_search = 0.4, catname = 'ecogal_all_priors_v1.csv'):
     gal_pos = Point(ra,dec)
 
 	#getting the footprint
-	fp, bool_region = get_footprint(ra,dec,metadata=rfile)
+    fp, bool_region = get_footprint(ra,dec,metadata=rfile)
 
     if 1:
         atb = Table.read(
