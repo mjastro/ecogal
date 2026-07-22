@@ -528,8 +528,8 @@ class EcogalFile:
         ax.grid()
 
         labels = [
-            self.file_alma.split("_")[0],
-            "_".join(self.file_alma.replace("__", "_").split("_")[1:-2]),
+            self.meta['almaid'],
+            "_".join(self.file_alma.replace("__", "_").split("_")[-5:-2]).split('all_')[-1],
             # f'Band {self.meta["band"]}  {self.frequency / 1.e9:.1f} GHz / {self.wavelength*1.e3:.2f} mm'
         ]
 
